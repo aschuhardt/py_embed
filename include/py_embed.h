@@ -4,11 +4,9 @@
 #include <stdbool.h>
 #include <wchar.h>
 
-#include "python3.7m/Python.h"
-
 #define MODULE_FUNCTION_LOAD_FAILURE -1
 
-typedef PyObject* py_object;
+typedef void* py_object;
 
 typedef size_t py_function;
 
@@ -19,35 +17,25 @@ typedef struct {
   py_object* module_functions;
 } py_embed;
 
-#define destroy_py_object(obj) Py_DECREF(obj);
+// disposes of a Python object
+void destroy_py_object(py_object obj);
 
-#define call_py_func_args(embed, func, argc, ...)                            \
-  ({                                                                         \
-    py_object args[] = {__VA_ARGS__};                                        \
-    py_object py_args = PyTuple_New(argc);                                   \
-    for (int i = 0; i < argc; ++i) {                                         \
-      PyTuple_SetItem(py_args, i, args[i]);                                  \
-    }                                                                        \
-    py_object result =                                                       \
-        PyObject_CallObject(embed->module_functions[(size_t)func], py_args); \
-    destroy_py_object(py_args);                                              \
-    result;                                                                  \
-  })
+// calls a registered Python function, passing it the provided arguments
+// and returning the result of the function call
+py_object call_py_func_args(py_embed* const embed, py_function func,
+                            unsigned int argc, ...);
 
-#define call_py_func(embed, func) \
-  ({ PyObject_CallObject(embed->module_functions[(size_t)func], NULL); })
+// calls a registered Python function, returning the result of the
+// function call
+py_object call_py_func(py_embed* const embed, py_function func);
 
-#define call_py_func_args_void(embed, func, argc, ...)                      \
-  ({                                                                        \
-    py_object result = call_py_func_args(embed, func, argc, ##__VA_ARGS__); \
-    if (result) destroy_py_object(result);                                  \
-  })
+// calls a registered Python function, passing it the provided arguments
+// and disposing of any result
+void call_py_func_args_void(py_embed* const embed, py_function func,
+                            unsigned int argc, ...);
 
-#define call_py_func_void(embed, func)            \
-  ({                                              \
-    py_object result = call_py_func(embed, func); \
-    if (result) destroy_py_object(result);        \
-  })
+// calls a registered Python function, disposing of any result
+void call_py_func_void(py_embed* const embed, py_function func);
 
 // initializes the Python interpreter
 py_embed* create_py_embed(const char* argv[]);

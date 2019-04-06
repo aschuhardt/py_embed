@@ -1,19 +1,87 @@
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include "Python.h"
 
 #include "py_embed.h"
 
 #define PY_EMBED_FAILURE 0
 #define PY_EMBED_SUCCESS 1
 
-#define PY_ERR_PRINT \
-  if (PyErr_Occurred()) PyErr_Print()
+#define PRINT_PY_ERROR() \
+  if (PyErr_Occurred()) PyErr_Print();
 
 #define PY_NULL_ERR_CHECK(ptr) \
   if (!ptr) {                  \
-    PY_ERR_PRINT;              \
+    PRINT_PY_ERROR();          \
     return PY_EMBED_FAILURE;   \
   }
+
+static inline void destroy_object(PyObject* obj) {
+  if (obj) Py_DECREF(obj);
+}
+
+void destroy_py_object(py_object obj) { destroy_object((PyObject*)obj); }
+
+py_object call_py_func_variadic(py_embed* const embed, py_function func,
+                                unsigned int argc, va_list args) {
+  PyObject* py_args = PyTuple_New(argc);
+
+  for (int i = 0; i < argc; ++i) {
+    PyTuple_SetItem(py_args, i, va_arg(args, PyObject*));
+  }
+
+  return PyObject_CallObject(embed->module_functions[(size_t)func], py_args);
+}
+
+py_object call_py_func(py_embed* const embed, py_function func) {
+  PyObject* result =
+      PyObject_CallObject(embed->module_functions[(size_t)func], NULL);
+
+  PRINT_PY_ERROR();
+
+  return (py_object)result;
+}
+
+py_object call_py_func_args(py_embed* const embed, py_function func,
+                            unsigned int argc, ...) {
+  PyObject* result;
+
+  if (argc > 0) {
+    va_list args;
+    va_start(args, argc);
+    result = call_py_func_variadic(embed, func, argc, args);
+    va_end(args);
+  } else {
+    result = call_py_func(embed, func);
+  }
+
+  PRINT_PY_ERROR();
+
+  return (py_object)result;
+}
+
+void call_py_func_args_void(py_embed* const embed, py_function func,
+                            unsigned int argc, ...) {
+  PyObject* result;
+
+  if (argc > 0) {
+    va_list args;
+    va_start(args, argc);
+    result = call_py_func_variadic(embed, func, argc, args);
+    va_end(args);
+  } else {
+    result = call_py_func(embed, func);
+  }
+
+  if (result) Py_DECREF(result);
+}
+
+void call_py_func_void(py_embed* const embed, py_function func) {
+  PyObject* result = call_py_func(embed, func);
+  if (result) Py_DECREF(result);
+}
 
 py_embed* create_py_embed(const char* argv[]) {
   py_embed* embed = malloc(sizeof(py_embed));
@@ -42,7 +110,7 @@ int destroy_py_embed(py_embed* embed) {
   // was deinitialized successfully
   int error_code = Py_FinalizeEx() < 0 ? 120 : 0;
 
-  PY_ERR_PRINT;
+  PRINT_PY_ERROR();
 
   // clean up embed state resources
   PyMem_RawFree(embed->program_name);
@@ -55,14 +123,17 @@ int destroy_py_embed(py_embed* embed) {
 
 int load_py_module(py_embed* const embed, const char* const path) {
   // if an existing module is already loaded, dispose of it
-  if (embed->module) Py_DECREF(embed->module);
+  destroy_py_object(embed->module);
 
-  embed->module = PyModule_New("embed");
-  PY_NULL_ERR_CHECK(embed->module);
+  PyObject* module = PyModule_New("embed");
+  PY_NULL_ERR_CHECK(module);
 
-  PyModule_AddStringConstant(embed->module, "__file__", path);
-  py_object locals = PyModule_GetDict(embed->module);
-  py_object builtins = PyEval_GetBuiltins();
+  embed->module = (py_object)module;
+
+  PyObject* locals = PyModule_GetDict(module);
+  PyObject* builtins = PyEval_GetBuiltins();
+
+  PyModule_AddStringConstant(module, "__file__", path);
   PyDict_SetItemString(locals, "__builtins__", builtins);
 
   FILE* fp = fopen(path, "r");
@@ -71,19 +142,17 @@ int load_py_module(py_embed* const embed, const char* const path) {
     return PY_EMBED_FAILURE;
   }
 
-  py_object script = PyRun_FileEx(fp, path, Py_file_input, locals, locals, 1);
-  if (!script) {
-    PY_ERR_PRINT;
-  } else {
-    Py_DECREF(script);
-  }
+  // file handle is closed when this function finishes
+  PyObject* script = PyRun_FileEx(fp, path, Py_file_input, locals, locals, 1);
+
+  PY_NULL_ERR_CHECK(script);
 
   return PY_EMBED_SUCCESS;
 }
 
 py_function load_py_function(py_embed* const embed, const char* const name) {
   if (!embed->module || !embed || !name) {
-    PY_ERR_PRINT;
+    PRINT_PY_ERROR();
     return MODULE_FUNCTION_LOAD_FAILURE;
   }
 
@@ -99,31 +168,31 @@ py_function load_py_function(py_embed* const embed, const char* const name) {
                             sizeof(py_object) * (embed->function_count + 1));
   }
 
-  py_object func = PyObject_GetAttrString(embed->module, name);
+  PyObject* func = PyObject_GetAttrString(embed->module, name);
 
   if (func && PyCallable_Check(func)) {
     size_t index = embed->function_count;
-    embed->module_functions[index] = func;
+    embed->module_functions[index] = (py_object)func;
 
     ++(embed->function_count);
 
     return (py_function)index;
   } else {
-    PY_ERR_PRINT;
+    PRINT_PY_ERROR();
     return (py_function)MODULE_FUNCTION_LOAD_FAILURE;
   }
 }
 
 py_object create_py_long(long value) {
-  py_object obj = PyLong_FromLong(value);
-  if (!obj) PY_ERR_PRINT;
-  return obj;
+  PyObject* obj = PyLong_FromLong(value);
+  if (!obj) PRINT_PY_ERROR();
+  return (py_object)obj;
 }
 
 py_object create_py_float(double value) {
-  py_object obj = PyLong_FromDouble(value);
-  if (!obj) PY_ERR_PRINT;
-  return obj;
+  PyObject* obj = PyLong_FromDouble(value);
+  if (!obj) PRINT_PY_ERROR();
+  return (py_object)obj;
 }
 
 py_object create_py_bool(bool value) {
