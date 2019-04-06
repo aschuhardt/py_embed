@@ -239,3 +239,24 @@ bool decompose_py_bool(py_object obj) {
 bool is_py_bool(py_object obj) {
   return PyBool_Check((PyObject*)obj) ? true : false;
 }
+
+py_object create_py_str(const char* const contents) {
+  PyObject* obj = PyUnicode_FromString(contents);
+  if (!obj) PRINT_PY_ERROR();
+  return (py_object)obj;
+}
+
+char* decompose_py_str(py_object obj) {
+  PyObject* pyobj = (PyObject*)obj;
+  if (!pyobj || PyUnicode_READY(obj) < 0) {
+    PRINT_PY_ERROR();
+    return NULL;
+  }
+  if (PyUnicode_KIND(obj) != PyUnicode_1BYTE_KIND) {
+    return "(Error: only UTF-8 encoding is currently supported.)";
+  }
+  Py_ssize_t length = PyUnicode_GET_LENGTH(obj);
+  return (char*)PyUnicode_1BYTE_DATA(obj);
+}
+
+bool is_py_str(py_object obj) { return PyUnicode_Check((PyObject*)obj); }

@@ -19,14 +19,19 @@ int main(int argc, char const* argv[]) {
   // load a function from the module
   py_function add = load_py_function(py, "add");
   py_function subtract = load_py_function(py, "subtract");
+  py_function get_text = load_py_function(py, "get_text");
 
-  if (add != MODULE_FUNCTION_LOAD_FAILURE) {
-    // if the function was loaded successfully, call that bad boy
+  if (add != MODULE_FUNCTION_LOAD_FAILURE &&
+      subtract != MODULE_FUNCTION_LOAD_FAILURE &&
+      get_text != MODULE_FUNCTION_LOAD_FAILURE) {
+    // if the function was loaded successfully, call it
     long add_result = py_decomp(long, call_py_func_args(py, add, 2, a, b));
     long sub_result = py_decomp(long, call_py_func_args(py, subtract, 2, b, a));
+    char* const text = py_decomp(str, call_py_func(py, get_text));
 
     printf("Addition result: %ld\n", add_result);
     printf("Subtraction result: %ld\n", sub_result);
+    printf("%s\n", text);
 
     // all macros:
     //

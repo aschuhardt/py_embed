@@ -77,4 +77,10 @@ bool decompose_py_bool(py_object obj);
 
 bool is_py_bool(py_object obj);
 
+py_object create_py_str(const char* const contents);
+
+char* decompose_py_str(py_object obj);
+
+bool is_py_str(py_object obj);
+
 #endif
