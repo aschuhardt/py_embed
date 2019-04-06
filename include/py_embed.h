@@ -6,6 +6,10 @@
 
 #define MODULE_FUNCTION_LOAD_FAILURE -1
 
+#define py_decomp(type, obj) decompose_py_##type(obj)
+#define py_check(type, obj) is_py_##type(obj)
+#define py_obj(type, obj) create_py_##type(obj)
+
 typedef void* py_object;
 
 typedef size_t py_function;
@@ -57,8 +61,20 @@ py_function load_py_function(py_embed* const embed, const char* const name);
 
 py_object create_py_long(long value);
 
+long decompose_py_long(py_object obj);
+
+bool is_py_long(py_object obj);
+
 py_object create_py_float(double value);
 
+double decompose_py_float(py_object obj);
+
+bool is_py_float(py_object obj);
+
 py_object create_py_bool(bool value);
+
+bool decompose_py_bool(py_object obj);
+
+bool is_py_bool(py_object obj);
 
 #endif

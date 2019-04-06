@@ -13,24 +13,29 @@ int main(int argc, char const* argv[]) {
   }
 
   // create some arguments
-  py_object a = create_py_long(6);
-  py_object b = create_py_long(10);
+  py_object a = py_obj(long, 6);
+  py_object b = py_obj(long, 10);
 
   // load a function from the module
   py_function add = load_py_function(py, "add");
+  py_function subtract = load_py_function(py, "subtract");
 
   if (add != MODULE_FUNCTION_LOAD_FAILURE) {
     // if the function was loaded successfully, call that bad boy
-    call_py_func_args_void(py, add, 2, a, b);
+    long add_result = py_decomp(long, call_py_func_args(py, add, 2, a, b));
+    long sub_result = py_decomp(long, call_py_func_args(py, subtract, 2, b, a));
+
+    printf("Addition result: %ld\n", add_result);
+    printf("Subtraction result: %ld\n", sub_result);
 
     // all macros:
     //
     // call_py_func_args        (Call function with arguments)
     // call_py_func             (Call function without arguments)
-    // call_py_func_args_void   (Call function with arguments and dispose
-    //                           of the result)
-    // call_py_func_void        (Call function without arguments and dispose
-    //                           of the result)
+    // call_py_func_args_void   (Call function with arguments and
+    //                           dispose of the result)
+    // call_py_func_void        (Call function without arguments and
+    //                           dispose of the result)
   }
 
   // clean up arguments

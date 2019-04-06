@@ -1,3 +1,5 @@
+#include <float.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -85,6 +87,7 @@ void call_py_func_void(py_embed* const embed, py_function func) {
 
 py_embed* create_py_embed(const char* argv[]) {
   py_embed* embed = malloc(sizeof(py_embed));
+
   embed->module_functions = NULL;
 
   // set the program name from the name of the executing binary
@@ -189,10 +192,34 @@ py_object create_py_long(long value) {
   return (py_object)obj;
 }
 
+long decompose_py_long(py_object obj) {
+  PyObject* pyobj = (PyObject*)obj;
+  if (!pyobj) return LONG_MIN;
+  long value = PyLong_AsLong(pyobj);
+  Py_DECREF(pyobj);
+  return value;
+}
+
+bool is_py_long(py_object obj) {
+  return PyLong_Check((PyObject*)obj) ? true : false;
+}
+
 py_object create_py_float(double value) {
   PyObject* obj = PyLong_FromDouble(value);
   if (!obj) PRINT_PY_ERROR();
   return (py_object)obj;
+}
+
+double decompose_py_float(py_object obj) {
+  PyObject* pyobj = (PyObject*)obj;
+  if (!pyobj) return DBL_MIN;
+  double value = PyFloat_AsDouble(pyobj);
+  Py_DECREF(pyobj);
+  return value;
+}
+
+bool is_py_float(py_object obj) {
+  return PyFloat_Check((PyObject*)obj) ? true : false;
 }
 
 py_object create_py_bool(bool value) {
@@ -200,4 +227,15 @@ py_object create_py_bool(bool value) {
     Py_RETURN_TRUE;
   else
     Py_RETURN_FALSE;
+}
+
+bool decompose_py_bool(py_object obj) {
+  int comp = PyObject_RichCompareBool(obj, Py_True, Py_EQ);
+  Py_DECREF(obj);
+  if (comp < 0) PRINT_PY_ERROR();
+  return comp ? true : false;
+}
+
+bool is_py_bool(py_object obj) {
+  return PyBool_Check((PyObject*)obj) ? true : false;
 }
