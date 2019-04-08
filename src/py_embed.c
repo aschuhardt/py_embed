@@ -88,28 +88,27 @@ void call_py_func_void(py_embed* const embed, py_function func) {
 
 static void cleanup_injection_artifacts(py_embed* const embed) {
   // cleanup
-  if (embed->inject_mod_name) free(embed->inject_mod_name);
-  if (embed->inject_funcs) {
-    for (int i = 0; i < embed->inject_func_count; ++i) {
-      PyMethodDef* def = &((PyMethodDef*)(embed->inject_funcs))[i];
+  if (embed->inject_state.mod_name) free(embed->inject_state.mod_name);
+  if (embed->inject_state.functions) {
+    for (int i = 0; i < embed->inject_state.func_count; ++i) {
+      PyMethodDef* def = &((PyMethodDef*)(embed->inject_state.functions))[i];
       if (def) {
         if (def->ml_name) free((char*)def->ml_name);
         if (def->ml_doc) free((char*)def->ml_doc);
       }
     }
-    free(embed->inject_funcs);
+    free(embed->inject_state.functions);
   }
 }
 
 static py_embed init_py_embed() {
+  module_injection inject_state = {
+      .mod_name = NULL, .func_count = 0, .func_index = 0, .functions = NULL};
   py_embed embed = {.program_name = NULL,
                     .function_count = 0,
                     .module = NULL,
                     .module_functions = NULL,
-                    .inject_mod_name = NULL,
-                    .inject_func_count = 0,
-                    .inject_func_index = 0,
-                    .inject_funcs = NULL};
+                    .inject_state = inject_state};
   return embed;
 }
 
@@ -297,26 +296,27 @@ void py_begin_module_injection(py_embed* const embed, size_t function_count,
   // make sure no artifacts from a previous injection are leaked
   cleanup_injection_artifacts(embed);
 
-  // copy the name of the module to the embed's inject_mod_name
+  // copy the name of the module to the embed's inject_state.mod_name
   // field
   size_t name_length = strlen(name);
-  embed->inject_mod_name = (char*)malloc(sizeof(char) * name_length);
-  strncpy(embed->inject_mod_name, name, name_length);
+  embed->inject_state.mod_name = (char*)malloc(sizeof(char) * name_length);
+  strncpy(embed->inject_state.mod_name, name, name_length);
 
   // set the desired function count and allocate object buffer
   // +1 to accomodate null method def at the end
-  embed->inject_func_count = function_count + 1;
-  embed->inject_funcs =
-      (void*)malloc(sizeof(PyMethodDef) * embed->inject_func_count);
+  embed->inject_state.func_count = function_count + 1;
+  embed->inject_state.functions =
+      (void*)malloc(sizeof(PyMethodDef) * embed->inject_state.func_count);
 
-  embed->inject_func_index = 0;
+  embed->inject_state.func_index = 0;
 }
 
 void py_add_injected_function(py_embed* const embed, const char* const name,
                               const char* const desc,
                               py_object (*func)(py_object, py_object)) {
   PyMethodDef* def =
-      &((PyMethodDef*)(embed->inject_funcs))[embed->inject_func_index++];
+      &((PyMethodDef*)(embed->inject_state
+                           .functions))[embed->inject_state.func_index++];
 
   // set the method name
   size_t name_length = strlen(name);
@@ -341,11 +341,12 @@ static PyObject* get_injected_module() {
 
 void py_finish_module_injection(py_embed* const embed) {
   PyMethodDef empty_def = {NULL, NULL, 0, NULL};
-  ((PyMethodDef*)(embed->inject_funcs))[embed->inject_func_count - 1] =
+  ((PyMethodDef*)(embed->inject_state
+                      .functions))[embed->inject_state.func_count - 1] =
       empty_def;
-  PyModuleDef module = {PyModuleDef_HEAD_INIT, embed->inject_mod_name, NULL, -1,
-                        embed->inject_funcs};
+  PyModuleDef module = {PyModuleDef_HEAD_INIT, embed->inject_state.mod_name,
+                        NULL, -1, embed->inject_state.functions};
   injected_module = module;
-  PyImport_AppendInittab(embed->inject_mod_name, get_injected_module);
+  PyImport_AppendInittab(embed->inject_state.mod_name, get_injected_module);
   // cleanup_injection_artifacts(embed);
 }

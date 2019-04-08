@@ -15,15 +15,18 @@ typedef void* py_object;
 typedef size_t py_function;
 
 typedef struct {
+  char* mod_name;
+  size_t func_count;
+  size_t func_index;
+  void* functions;
+} module_injection;
+
+typedef struct {
   wchar_t* program_name;
   size_t function_count;
   py_object module;
   py_object* module_functions;
-
-  char* inject_mod_name;
-  size_t inject_func_count;
-  size_t inject_func_index;
-  void* inject_funcs;
+  module_injection inject_state;
 } py_embed;
 
 // disposes of a Python object
