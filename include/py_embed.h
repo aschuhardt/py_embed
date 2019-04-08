@@ -64,28 +64,45 @@ int load_py_module(py_embed* const embed, const char* const path);
 // module and returns a value that can be used to call it later
 py_function load_py_function(py_embed* const embed, const char* const name);
 
+// creates a Python integer object from a signed long integer
 py_object create_py_long(long value);
 
+// consumes a Python integer object, returning the value as a signed long
+// integer and deallocating the Python object
 long decompose_py_long(py_object obj);
 
+// returns true if the provided object is a Python integer object
 bool is_py_long(py_object obj);
 
+// creates a Python floating-point object from a double-precision floating-point
+// value
 py_object create_py_float(double value);
 
+// consumes a Python floating-point object, returning the value as a
+// double-precision floating-point value and deallocating the Python object
 double decompose_py_float(py_object obj);
 
+// returns true if the provided object is a Python floating-point object
 bool is_py_float(py_object obj);
 
+// creates a Python Boolean object from a bool value
 py_object create_py_bool(bool value);
 
+// consumes a Python Boolean object, returning the value as a bool and
+// deallocating the Python object
 bool decompose_py_bool(py_object obj);
 
+// returns true if the provided object is a Python Boolean object
 bool is_py_bool(py_object obj);
 
+// creates a Python string object from a string
 py_object create_py_str(const char* const contents);
 
+// consumes a Python string object, returning the value as a string and
+// deallocating the Python object
 char* decompose_py_str(py_object obj);
 
+// returns true if the provided object is a Python string object
 bool is_py_str(py_object obj);
 
 void py_begin_module_injection(py_embed* const embed, size_t function_count,
