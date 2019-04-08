@@ -19,6 +19,11 @@ typedef struct {
   size_t function_count;
   py_object module;
   py_object* module_functions;
+
+  char* inject_mod_name;
+  size_t inject_func_count;
+  size_t inject_func_index;
+  void* inject_funcs;
 } py_embed;
 
 // disposes of a Python object
@@ -82,5 +87,14 @@ py_object create_py_str(const char* const contents);
 char* decompose_py_str(py_object obj);
 
 bool is_py_str(py_object obj);
+
+void py_begin_module_injection(py_embed* const embed, size_t function_count,
+                               const char* const name);
+
+void py_add_injected_function(py_embed* const embed, const char* const name,
+                              const char* const desc,
+                              py_object (*func)(py_object, py_object));
+
+void py_finish_module_injection(py_embed* const embed);
 
 #endif

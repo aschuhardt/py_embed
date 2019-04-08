@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "Python.h"
 
@@ -85,6 +86,21 @@ void call_py_func_void(py_embed* const embed, py_function func) {
   if (result) Py_DECREF(result);
 }
 
+static void cleanup_injection_artifacts(py_embed* const embed) {
+  // cleanup
+  if (embed->inject_mod_name) free(embed->inject_mod_name);
+  if (embed->inject_funcs) {
+    for (int i = 0; i < embed->inject_func_count; ++i) {
+      PyMethodDef* def = &((PyMethodDef*)(embed->inject_funcs))[i];
+      if (def) {
+        if (def->ml_name) free((char*)def->ml_name);
+        if (def->ml_doc) free((char*)def->ml_doc);
+      }
+    }
+    free(embed->inject_funcs);
+  }
+}
+
 py_embed* create_py_embed(const char* argv[]) {
   py_embed* embed = malloc(sizeof(py_embed));
 
@@ -93,8 +109,6 @@ py_embed* create_py_embed(const char* argv[]) {
   // set the program name from the name of the executing binary
   embed->program_name = Py_DecodeLocale(argv[0], NULL);
   Py_SetProgramName(embed->program_name);
-
-  Py_Initialize();
 
   return embed;
 }
@@ -119,6 +133,8 @@ int destroy_py_embed(py_embed* embed) {
   PyMem_RawFree(embed->program_name);
   destroy_py_object(embed->module);
 
+  cleanup_injection_artifacts(embed);
+
   free(embed);
 
   return error_code;
@@ -127,6 +143,8 @@ int destroy_py_embed(py_embed* embed) {
 int load_py_module(py_embed* const embed, const char* const path) {
   // if an existing module is already loaded, dispose of it
   destroy_py_object(embed->module);
+
+  Py_Initialize();
 
   PyObject* module = PyModule_New("embed");
   PY_NULL_ERR_CHECK(module);
@@ -260,3 +278,61 @@ char* decompose_py_str(py_object obj) {
 }
 
 bool is_py_str(py_object obj) { return PyUnicode_Check((PyObject*)obj); }
+
+void py_begin_module_injection(py_embed* const embed, size_t function_count,
+                               const char* const name) {
+  // make sure no artifacts from a previous injection are leaked
+  cleanup_injection_artifacts(embed);
+
+  // copy the name of the module to the embed's inject_mod_name
+  // field
+  size_t name_length = strlen(name);
+  embed->inject_mod_name = (char*)malloc(sizeof(char) * name_length);
+  strncpy(embed->inject_mod_name, name, name_length);
+
+  // set the desired function count and allocate object buffer
+  // +1 to accomodate null method def at the end
+  embed->inject_func_count = function_count + 1;
+  embed->inject_funcs =
+      (void*)malloc(sizeof(PyMethodDef) * embed->inject_func_count);
+
+  embed->inject_func_index = 0;
+}
+
+void py_add_injected_function(py_embed* const embed, const char* const name,
+                              const char* const desc,
+                              py_object (*func)(py_object, py_object)) {
+  PyMethodDef* def =
+      &((PyMethodDef*)(embed->inject_funcs))[embed->inject_func_index++];
+
+  // set the method name
+  size_t name_length = strlen(name);
+  def->ml_name = (const char*)malloc(sizeof(char) * name_length);
+  strncpy((char*)(def->ml_name), name, name_length);
+
+  // set the method doc string
+  size_t desc_length = strlen(desc);
+  def->ml_doc = (const char*)malloc(sizeof(char) * desc_length);
+  strncpy((char*)(def->ml_doc), desc, desc_length);
+
+  // set method flags and function pointer
+  def->ml_flags = METH_VARARGS;
+  def->ml_meth = (PyObject * (*)(PyObject*, PyObject*)) func;
+}
+
+// sure, why not
+static PyModuleDef injected_module;
+static PyObject* get_injected_module() {
+  return PyModule_Create(&injected_module);
+}
+
+void py_finish_module_injection(py_embed* const embed) {
+  PyMethodDef empty_def = {NULL, NULL, 0, NULL};
+  ((PyMethodDef*)(embed->inject_funcs))[embed->inject_func_count - 1] =
+      empty_def;
+  PyModuleDef module = {PyModuleDef_HEAD_INIT, embed->inject_mod_name, NULL, -1,
+                        embed->inject_funcs};
+  injected_module = module;
+  PyImport_AppendInittab(embed->inject_mod_name, get_injected_module);
+  // cleanup_injection_artifacts(embed);
+}
