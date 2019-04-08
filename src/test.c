@@ -16,7 +16,7 @@ int main(int argc, char const* argv[]) {
   py_finish_module_injection(py);
 
   // load the desired module from a script
-  if (!load_py_module(py, "addition.py")) {
+  if (!load_py_module(py, "test.py")) {
     printf("Failed to load module\n");
     return 1;
   }
