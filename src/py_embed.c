@@ -101,8 +101,21 @@ static void cleanup_injection_artifacts(py_embed* const embed) {
   }
 }
 
+static py_embed init_py_embed() {
+  py_embed embed = {.program_name = NULL,
+                    .function_count = 0,
+                    .module = NULL,
+                    .module_functions = NULL,
+                    .inject_mod_name = NULL,
+                    .inject_func_count = 0,
+                    .inject_func_index = 0,
+                    .inject_funcs = NULL};
+  return embed;
+}
+
 py_embed* create_py_embed(const char* argv[]) {
   py_embed* embed = malloc(sizeof(py_embed));
+  *embed = init_py_embed();
 
   embed->module_functions = NULL;
 
